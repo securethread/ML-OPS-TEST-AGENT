@@ -55,9 +55,14 @@
   .scroll { overflow:auto; }
   /* sidebar */
   .grp { display:flex; align-items:center; gap:7px; font-size:13px; font-weight:800; color:#cbd5e1;
-         margin:16px 2px 6px; letter-spacing:.4px; }
+         margin:14px 2px 6px; letter-spacing:.4px; cursor:pointer; user-select:none; }
+  .grp:hover { color:#fff; }
+  .grp .chev { color:var(--muted); font-size:10px; transition:transform .15s; }
+  .section.open .grp .chev { transform:rotate(90deg); }
   .grp .count { margin-left:auto; font-size:11px; color:var(--muted); font-weight:600;
                 background:#0a1426; border:1px solid var(--line); padding:1px 8px; border-radius:9px; }
+  .grpitems { display:none; }
+  .section.open .grpitems { display:block; }
   .ch { background:var(--panel2); border:1px solid var(--line); border-left:3px solid #475569;
         border-radius:9px; padding:8px 10px; margin:6px 0; cursor:pointer; transition:.12s; }
   .ch:hover { background:#13213a; transform:translateX(2px); }
@@ -215,9 +220,13 @@ async function renderChallenges() {
   const groups = await (await fetch('/api/challenges')).json();
   const root = document.getElementById('challenges');
   for (const [group, items] of Object.entries(groups)) {
+    const sec = document.createElement('div'); sec.className = 'section';  // closed by default
     const h = document.createElement('div'); h.className = 'grp';
-    h.innerHTML = `<span>${GRP_ICON[group]||''}</span><span>${group}</span><span class="count">${items.length}</span>`;
-    root.appendChild(h);
+    h.innerHTML = `<span class="chev">▶</span><span>${GRP_ICON[group]||''}</span>` +
+      `<span>${group}</span><span class="count">${items.length}</span>`;
+    h.onclick = () => sec.classList.toggle('open');
+    sec.appendChild(h);
+    const items_el = document.createElement('div'); items_el.className = 'grpitems';
     for (const c of items) {
       const el = document.createElement('div'); el.className = 'ch';
       el.style.borderLeftColor = DIF_COLOR[c.difficulty] || '#475569';
@@ -227,8 +236,10 @@ async function renderChallenges() {
         <span class="dif ${c.difficulty}">${c.difficulty}</span></div>
         <div class="body">💡 ${c.tip}<div class="confirm">✔ ${c.confirm}</div></div>`;
       el.querySelector('.top').onclick = () => el.classList.toggle('open');
-      root.appendChild(el);
+      items_el.appendChild(el);
     }
+    sec.appendChild(items_el);
+    root.appendChild(sec);
   }
 }
 
