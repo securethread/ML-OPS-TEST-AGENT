@@ -5,71 +5,127 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NovaBank Assistant (Vulnerable Lab)</title>
 <style>
-  :root { --bg:#0f172a; --panel:#1e293b; --accent:#38bdf8; --text:#e2e8f0; --muted:#94a3b8; }
+  :root { --bg:#0f172a; --panel:#1e293b; --panel2:#172033; --accent:#38bdf8; --text:#e2e8f0; --muted:#94a3b8; --line:#334155; }
   * { box-sizing: border-box; }
   body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--text); }
-  header { background:var(--panel); padding:12px 16px; display:flex; align-items:center; gap:12px; border-bottom:1px solid #334155;}
+  header { background:var(--panel); padding:10px 16px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line);}
   header h1 { font-size:16px; margin:0; }
   .badge { background:#7f1d1d; color:#fecaca; font-size:11px; padding:2px 8px; border-radius:10px; }
-  .wrap { display:flex; gap:16px; max-width:1100px; margin:16px auto; padding:0 16px; }
-  .chat { flex:2; display:flex; flex-direction:column; height:72vh; }
-  .side { flex:1; background:var(--panel); border-radius:10px; padding:12px; overflow:auto; height:72vh; font-size:12px;}
+  .wrap { display:flex; gap:12px; max-width:1500px; margin:12px auto; padding:0 12px; align-items:stretch; }
+  .col { height:78vh; overflow:auto; }
+  .sidebar { flex:0 0 320px; background:var(--panel); border-radius:10px; padding:10px; font-size:12px; }
+  .chat { flex:1; display:flex; flex-direction:column; min-width:380px; }
+  .side { flex:0 0 330px; background:var(--panel); border-radius:10px; padding:12px; font-size:12px;}
   #log { flex:1; overflow:auto; background:var(--panel); border-radius:10px; padding:12px; }
-  .msg { margin:8px 0; padding:8px 12px; border-radius:8px; max-width:85%; line-height:1.4; }
+  .msg { margin:8px 0; padding:8px 12px; border-radius:8px; max-width:88%; line-height:1.4; }
   .user { background:#0ea5e9; color:#042f49; margin-left:auto; }
   .bot { background:#334155; }
-  .row { display:flex; gap:8px; margin-top:10px; }
-  input, select { font:inherit; padding:10px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:var(--text); }
-  #message { flex:1; }
-  button { font:inherit; padding:10px 14px; border:0; border-radius:8px; background:var(--accent); color:#042f49; cursor:pointer; }
-  h2 { font-size:13px; color:var(--accent); margin:12px 0 4px; }
+  .row { display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap; }
+  input, select, textarea { font:inherit; padding:9px; border-radius:8px; border:1px solid var(--line); background:#0b1220; color:var(--text); }
+  #message { flex:1; min-width:160px; }
+  button { font:inherit; padding:9px 14px; border:0; border-radius:8px; background:var(--accent); color:#042f49; cursor:pointer; }
+  button.ghost { background:#475569; color:#e2e8f0; }
+  h2 { font-size:13px; color:var(--accent); margin:10px 0 6px; }
   pre { white-space:pre-wrap; word-break:break-word; background:#0b1220; padding:8px; border-radius:6px; }
   .muted { color:var(--muted); }
+  /* sidebar challenges */
+  .grp { font-size:13px; font-weight:700; color:var(--accent); margin:12px 0 4px; letter-spacing:.3px;}
+  .ch { background:var(--panel2); border:1px solid var(--line); border-radius:7px; padding:7px 9px; margin:5px 0; cursor:pointer; }
+  .ch:hover { border-color:var(--accent); }
+  .ch .top { display:flex; align-items:center; gap:6px; }
+  .ch .code { font-family:monospace; color:var(--muted); font-size:11px; }
+  .ch .title { flex:1; font-weight:600; }
+  .ch .body { margin-top:6px; display:none; color:#cbd5e1; line-height:1.45; }
+  .ch.open .body { display:block; }
+  .ch .confirm { color:var(--muted); margin-top:4px; }
+  .dif { font-size:10px; padding:1px 7px; border-radius:9px; font-weight:700; }
+  .Easy{background:#064e3b;color:#6ee7b7} .Medium{background:#78350f;color:#fcd34d}
+  .Hard{background:#7c2d12;color:#fdba74} .Expert{background:#7f1d1d;color:#fecaca}
+  .flag { padding:2px 8px; border-radius:9px; font-size:11px; font-weight:700; }
+  .flag.on { background:#7f1d1d; color:#fecaca; } .flag.off { background:#1f2937; color:#64748b; }
+  details > summary { cursor:pointer; color:var(--accent); margin-top:8px; }
 </style>
 </head>
 <body>
 <header>
   <h1>🏦 NovaBank AI Assistant</h1>
   <span class="badge">INTENTIONALLY VULNERABLE — LAB USE ONLY</span>
+  <span class="muted" id="who" style="margin-left:auto;font-size:12px"></span>
 </header>
 
 <div class="wrap">
+  <!-- LEFT: challenges -->
+  <div class="col sidebar">
+    <h2 style="margin-top:2px">🎯 Challenges</h2>
+    <div class="muted">Click a vuln for a tip (not the answer) + how to confirm. Difficulty on the right.</div>
+    <div id="challenges"></div>
+  </div>
+
+  <!-- CENTER: chat -->
   <div class="chat">
-    <div id="log">
+    <div id="log" class="col" style="height:auto;flex:1">
       <div class="msg bot">Hi, I'm Nova. Ask me about your balance, transactions, fees, transfers, or documents.</div>
     </div>
     <div class="row">
-      <select id="customer" title="Client-supplied identity (trusted blindly)">
+      <select id="customer" title="Who you authenticate as (login issues a token)">
         <option>CUST-1001</option><option>CUST-1002</option>
         <option>CUST-1003</option><option>CUST-9999</option>
       </select>
       <input id="message" placeholder="Type a message…" autocomplete="off">
       <button onclick="send()">Send</button>
-      <button onclick="reset()" style="background:#475569;color:#e2e8f0">Reset</button>
+      <button class="ghost" onclick="reset()">Reset</button>
+    </div>
+    <div class="row">
+      <span class="flag off" id="blockedFlag">guardrail</span>
+      <span class="flag off" id="canaryFlag">canary</span>
+      <span class="muted">login password: <code>labpass</code> (lab-public)</span>
     </div>
   </div>
 
-  <div class="side">
-    <h2>Last-turn trace</h2>
-    <div class="muted">Tool calls the agent made and the raw results. Use this to confirm an exploit fired.</div>
+  <!-- RIGHT: trace + tools -->
+  <div class="col side">
+    <h2 style="margin-top:2px">Last-turn trace</h2>
+    <div class="muted">Tool calls + raw results. Confirm an exploit here.</div>
     <pre id="trace">(none yet)</pre>
     <h2>Retrieved RAG context</h2>
     <pre id="rag">(none yet)</pre>
+    <details>
+      <summary>☣ Plant a KB document (RAG poisoning)</summary>
+      <div class="muted" style="margin:6px 0">Untrusted ingestion — becomes retrievable immediately.</div>
+      <input id="docSrc" placeholder="source name, e.g. evil.md" style="width:100%;margin-bottom:6px">
+      <textarea id="docText" rows="4" placeholder="document text…" style="width:100%"></textarea>
+      <button onclick="plant()" style="margin-top:6px">Ingest</button>
+      <span id="plantMsg" class="muted"></span>
+    </details>
   </div>
 </div>
 
 <script>
 const sessionId = "web-" + Math.random().toString(36).slice(2);
 const log = document.getElementById('log');
+let token = null;
+
+async function login(cid) {
+  const r = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ customer_id: cid, password: 'labpass' }) });
+  const d = await r.json();
+  token = d.token;
+  document.getElementById('who').textContent = 'logged in as ' + (d.customer_id || cid);
+}
 
 function add(role, html) {
   const d = document.createElement('div');
   d.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
-  // VULN: assistant output is injected as HTML, not text -> insecure output
-  // handling / XSS. (User echo is escaped; the model's reply is not.)
+  // VULN: assistant output injected as HTML (insecure output handling / XSS).
   if (role === 'user') { d.textContent = html; } else { d.innerHTML = html; }
   log.appendChild(d);
   log.scrollTop = log.scrollHeight;
+}
+
+function flag(id, on, label) {
+  const el = document.getElementById(id);
+  el.className = 'flag ' + (on ? 'on' : 'off');
+  el.textContent = label;
 }
 
 async function send() {
@@ -78,25 +134,57 @@ async function send() {
   if (!msg) return;
   add('user', msg);
   input.value = '';
-  const customer_id = document.getElementById('customer').value;
   const res = await fetch('/api/chat', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ message: msg, customer_id, session_id: sessionId })
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token},
+    body: JSON.stringify({ message: msg, session_id: sessionId })
   });
   const data = await res.json();
-  add('bot', data.reply || '(no reply)');
+  add('bot', data.reply || ('(' + (data.error || 'no reply') + ')'));
   document.getElementById('trace').textContent =
     data.trace && data.trace.length ? JSON.stringify(data.trace, null, 2) : '(no tool calls)';
   document.getElementById('rag').textContent = data.rag_context || '(none)';
+  flag('blockedFlag', data.blocked, data.blocked ? 'guardrail: BLOCKED' : 'guardrail');
+  flag('canaryFlag', data.canary_triggered, data.canary_triggered ? '🚨 CANARY TRIGGERED' : 'canary');
 }
 
 async function reset() {
   await fetch('/api/reset', { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ session_id: sessionId }) });
-  log.innerHTML = '<div class="msg bot">Session reset.</div>';
+  log.innerHTML = '<div class="msg bot">Session reset (memory + planted KB docs cleared).</div>';
 }
 
+async function plant() {
+  const source = document.getElementById('docSrc').value || 'user_upload';
+  const text = document.getElementById('docText').value;
+  const r = await fetch('/api/kb/add', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ source, text }) });
+  const d = await r.json();
+  document.getElementById('plantMsg').textContent = ' ingested (' + d.docs + ' docs)';
+}
+
+async function renderChallenges() {
+  const groups = await (await fetch('/api/challenges')).json();
+  const root = document.getElementById('challenges');
+  for (const [group, items] of Object.entries(groups)) {
+    const h = document.createElement('div'); h.className = 'grp'; h.textContent = group; root.appendChild(h);
+    for (const c of items) {
+      const el = document.createElement('div'); el.className = 'ch';
+      const status = c.status === 'partial' ? ' · <span class="muted">partial</span>' : '';
+      el.innerHTML = `<div class="top"><span class="code">${c.code}</span>
+        <span class="title">${c.title}${status}</span>
+        <span class="dif ${c.difficulty}">${c.difficulty}</span></div>
+        <div class="body">💡 ${c.tip}<div class="confirm">✔ ${c.confirm}</div></div>`;
+      el.querySelector('.top').onclick = () => el.classList.toggle('open');
+      root.appendChild(el);
+    }
+  }
+}
+
+document.getElementById('customer').addEventListener('change', e => login(e.target.value));
 document.getElementById('message').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+login('CUST-1001');
+renderChallenges();
 </script>
 </body>
 </html>

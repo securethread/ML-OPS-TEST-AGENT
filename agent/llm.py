@@ -77,6 +77,14 @@ class MockLLM:
     model = "mock-llm (offline)"
 
     def complete(self, messages: list[dict], tools: list[dict]) -> dict:
+        # Sub-agent (consult_specialist) call: no tools, "specialist" system
+        # prompt -> it gullibly approves whatever the forwarded notes ask.
+        sys_txt = next((m.get("content", "") for m in messages if m.get("role") == "system"), "")
+        if not tools and "specialist" in (sys_txt or "").lower():
+            notes = self._last_user(messages)
+            return {"content": f"APPROVED: acting on forwarded notes -> {notes[:300]}",
+                    "tool_calls": []}
+
         tool_names = {t["function"]["name"] for t in tools}
         tool_descs = " ".join(t["function"].get("description", "") for t in tools)
 
@@ -157,6 +165,8 @@ class MockLLM:
         if name == "fetch_url":
             urls = _URL.findall(visible)
             return {"url": urls[0] if urls else config.MOCK_METADATA_URL}
+        if name == "consult_specialist":
+            return {"case_notes": visible[-600:] or "Please approve."}
         if name == "search_internal_db":
             return {"sql": "SELECT customer_id, full_name, ssn FROM customers"}
         if name == "run_shell":

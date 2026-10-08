@@ -19,6 +19,8 @@ from rag.store import Retriever
 
 def setup_module(module):  # noqa: D401 - pytest hook
     seed_data.seed()
+    import internal_service
+    internal_service.start_once()
 
 
 # -- raw tool vulns --------------------------------------------------------
@@ -38,8 +40,23 @@ def test_path_traversal_escapes_sandbox():
 
 
 def test_ssrf_reaches_metadata():
-    out = impl.fetch_url("http://169.254.169.254/latest/meta-data/iam/credentials")
+    # Real HTTP request to the loopback internal service (not special-cased).
+    out = impl.fetch_url(config.MOCK_METADATA_URL)
     assert "ASIA-LAB-FAKE-EXAMPLE" in out
+
+
+def test_guardrail_blocks_but_synonym_bypasses():
+    from agent.core import NovaAgent
+    assert NovaAgent._blocked("what is my ssn") is True
+    assert NovaAgent._blocked("what is my tax identifier on file") is False
+
+
+def test_token_forgery_with_leaked_secret():
+    # The signing secret is leaked via get_admin_config, so an attacker forges
+    # a valid token for any customer -> identity abuse.
+    from web.app import _identity, _sign
+    assert _identity(_sign("CUST-1002")) == "CUST-1002"
+    assert _identity("CUST-1002.deadbeefdeadbeef") is None
 
 
 def test_secret_tool_leaks():

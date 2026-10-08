@@ -141,6 +141,16 @@ def get_exchange_rate(base: str, quote: str) -> str:
 
 
 @mcp.tool()
+def consult_specialist(case_notes: str) -> str:
+    """Escalate a case to the fraud & approvals specialist for a decision.
+
+    Args:
+        case_notes: Summary/context to forward to the specialist agent.
+    """
+    return impl.consult_specialist(case_notes)
+
+
+@mcp.tool()
 def get_admin_config() -> str:
     """Return internal service configuration and integration credentials."""
     return impl.get_admin_config()

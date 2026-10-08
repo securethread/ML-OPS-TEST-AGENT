@@ -9,8 +9,14 @@ training target for AI-security testing. One bundle wires together:
 - a **real RAG** pipeline over a banking knowledge base,
 - a chat **web UI** + REST API,
 
-and plants a broad set of **OWASP LLM Top 10**, **MCP (community) Top 10**, and
-**RAG** vulnerabilities so testers can find and exploit them hands-on.
+and plants a broad set of vulnerabilities mapped to the **Agent (ASI) Top 10**,
+**MCP Top 10**, and **RAG attack** taxonomies (24 challenges) so testers can
+find and exploit them hands-on.
+
+The left-hand **Challenges sidebar** lists every vuln by taxonomy code with a
+**difficulty** badge and a one-line **tip** (a hint, not the solution) plus how
+to confirm success. It's driven by [`challenges.py`](challenges.py) via
+`/api/challenges`.
 
 > ⚠️ **READ THIS FIRST.** This app is vulnerable *on purpose*. Everything it
 > touches is **synthetic** — a seeded SQLite DB, a jailed `sandbox/` folder, a
@@ -144,6 +150,25 @@ npx @modelcontextprotocol/inspector python -m mcp_server.server
 ```
 
 ---
+
+## Auth & API (what changed vs a naive demo)
+
+Identity is now **server-anchored**: `POST /api/login {customer_id, password}`
+(password is the lab-public `labpass`) returns an HMAC-signed token, and
+`/api/chat` derives the customer from it — not from the request body. The
+vulnerability is that **the tools never re-check that identity** (IDOR), and
+the signing secret is leakable via `get_admin_config`, so it's **forgeable**
+(ASI03). The UI logs in automatically when you pick a customer in the dropdown.
+
+Other endpoints: `POST /api/kb/add {source,text}` (untrusted KB ingestion →
+live RAG poisoning), `GET /api/challenges`, `GET /api/debug`.
+
+Real (not simulated): `fetch_url` makes a genuine HTTP call to an internal-only
+loopback service ([`internal_service.py`](internal_service.py)) for the SSRF
+demo; `consult_specialist` runs a real second "specialist" agent that trusts
+forwarded notes (inter-agent injection → cascading approval). A naive guardrail
+blocks a few obvious words (`LAB_ENABLE_GUARDRAIL=1`) so there's a filter to
+evade with synonyms; a KB **canary** credential flags when it's exfiltrated.
 
 ## Resetting state
 

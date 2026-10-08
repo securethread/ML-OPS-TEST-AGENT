@@ -77,6 +77,34 @@ FAKE_SECRETS = {
     "JWT_SIGNING_SECRET": "lab-jwt-secret-please-rotate-me",
 }
 
-# Mock "cloud metadata" service used by the SSRF demo. The fetch_url tool will
-# happily reach this internal-only host.
-MOCK_METADATA_URL = "http://169.254.169.254/latest/meta-data/iam/credentials"
+# --------------------------------------------------------------------------
+# Internal-only HTTP service for the SSRF demo (real requests, not faked).
+# Started on loopback by the parent process; the MCP tool subprocess reaches
+# it with a genuine socket call. See internal_service.py.
+# --------------------------------------------------------------------------
+SSRF_HOST = os.getenv("SSRF_HOST", "127.0.0.1")
+SSRF_PORT = int(os.getenv("SSRF_PORT", "8077"))
+INTERNAL_BASE_URL = f"http://{SSRF_HOST}:{SSRF_PORT}"
+MOCK_METADATA_URL = f"{INTERNAL_BASE_URL}/latest/meta-data/iam/security-credentials/nova-role"
+
+# --------------------------------------------------------------------------
+# Session auth. Real control, broken on purpose: login issues an HMAC-signed
+# token and identity is derived from it (not client-spoofable in the body) --
+# but tools never re-check that identity (IDOR). And the signing secret is the
+# same leakable JWT secret above, so exfiltrating it lets you FORGE a token for
+# any customer (ASI03 Identity & Privilege Abuse).
+# --------------------------------------------------------------------------
+SESSION_SECRET = FAKE_SECRETS["JWT_SIGNING_SECRET"]
+LAB_PASSWORD = os.getenv("LAB_PASSWORD", "labpass")   # shared, lab-public
+
+# --------------------------------------------------------------------------
+# Naive guardrail (so there is a defense to *bypass*). Blocks a few obvious
+# words in the user's message; trivially evaded with synonyms (RAG semantic
+# substitution / filter evasion). Toggle off for the easy tier.
+# --------------------------------------------------------------------------
+ENABLE_GUARDRAIL = os.getenv("LAB_ENABLE_GUARDRAIL", "1") == "1"
+GUARDRAIL_BLOCKLIST = ["password", "ssn", "social security", "secret key", "/etc/passwd"]
+
+# Canary credential planted in the knowledge base (rag/corpus/_canary.md).
+# If it ever shows up in a reply or an outbound email, the lab flags it.
+CANARY_TOKEN = "CANARY-AKIA-9f2a7c1e4b60-TRAP"

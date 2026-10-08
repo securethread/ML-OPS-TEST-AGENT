@@ -11,6 +11,18 @@ single canonical OWASP document — the lists below are a practical,
 widely-recognized synthesis, not an official citation. Treat the *concepts*
 as authoritative and the *numbering* as a teaching aid.
 
+**Taxonomy mapping lives in [`challenges.py`](../challenges.py)** — the
+interactive catalog behind the UI sidebar, mapped to the Agent **ASI01–ASI10**,
+**MCP01–MCP10**, and **RAG attack** lists with per-challenge difficulty + tips.
+This file keeps the deeper exploit walkthroughs (by OWASP LLM Top 10). The two
+don't duplicate: registry = index + hints, this doc = detail.
+
+New real (not simulated) backings added in v2: HMAC session auth that tools
+ignore (IDOR) and whose secret is forgeable (ASI03); `consult_specialist`
+second agent for inter-agent injection → cascading (ASI07/08); real loopback
+SSRF target (`internal_service.py`); `/api/kb/add` live KB poisoning; a KB
+canary credential; a naive synonym-evadable guardrail; a context-overflow doc.
+
 ## How to confirm an exploit fired
 
 | Evidence | Where |
