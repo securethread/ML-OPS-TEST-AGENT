@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#818cf8"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- shield / hexagon frame -->
+  <polygon points="675,300 537,62 263,62 125,300 263,538 537,538"
+           stroke="url(#g)" stroke-width="2" opacity="0.18"/>
+  <polygon points="640,300 519,92 281,92 160,300 281,508 519,508"
+           stroke="#38bdf8" stroke-width="1" opacity="0.10"/>
+
+  <!-- orbit rings -->
+  <g stroke="#38bdf8" fill="none" opacity="0.16" stroke-dasharray="3 7">
+    <circle cx="400" cy="300" r="90"/>
+    <circle cx="400" cy="300" r="160"/>
+    <circle cx="400" cy="300" r="230"/>
+  </g>
+
+  <!-- links from core to nodes -->
+  <g stroke="url(#g)" stroke-width="1.4" opacity="0.22">
+    <line x1="400" y1="300" x2="478" y2="255"/>
+    <line x1="400" y1="300" x2="322" y2="255"/>
+    <line x1="400" y1="300" x2="400" y2="390"/>
+    <line x1="400" y1="300" x2="560" y2="300"/>
+    <line x1="400" y1="300" x2="400" y2="140"/>
+    <line x1="400" y1="300" x2="261" y2="380"/>
+    <line x1="400" y1="300" x2="539" y2="380"/>
+    <line x1="400" y1="300" x2="563" y2="137"/>
+    <line x1="400" y1="300" x2="237" y2="137"/>
+    <line x1="400" y1="300" x2="237" y2="463"/>
+    <line x1="400" y1="300" x2="563" y2="463"/>
+  </g>
+
+  <!-- nodes -->
+  <g fill="url(#g)" filter="url(#glow)" opacity="0.55">
+    <circle cx="478" cy="255" r="6"/><circle cx="322" cy="255" r="6"/>
+    <circle cx="400" cy="390" r="6"/><circle cx="560" cy="300" r="7"/>
+    <circle cx="400" cy="140" r="7"/><circle cx="261" cy="380" r="6"/>
+    <circle cx="539" cy="380" r="6"/><circle cx="563" cy="137" r="5"/>
+    <circle cx="237" cy="137" r="5"/><circle cx="237" cy="463" r="5"/>
+    <circle cx="563" cy="463" r="5"/>
+  </g>
+
+  <!-- AI core -->
+  <circle cx="400" cy="300" r="16" fill="url(#g)" filter="url(#glow)" opacity="0.85"/>
+  <circle cx="400" cy="300" r="28" stroke="#38bdf8" stroke-width="1.5" opacity="0.4"/>
+
+  <text x="400" y="580" text-anchor="middle" fill="#38bdf8" opacity="0.14"
+        font-family="monospace" font-size="26" letter-spacing="12">AI SECURITY LAB</text>
+</svg>
