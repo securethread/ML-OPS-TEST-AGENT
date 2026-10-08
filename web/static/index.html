@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NovaBank Assistant (Vulnerable Lab)</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --accent:#38bdf8; --text:#e2e8f0; --muted:#94a3b8; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--panel); padding:12px 16px; display:flex; align-items:center; gap:12px; border-bottom:1px solid #334155;}
+  header h1 { font-size:16px; margin:0; }
+  .badge { background:#7f1d1d; color:#fecaca; font-size:11px; padding:2px 8px; border-radius:10px; }
+  .wrap { display:flex; gap:16px; max-width:1100px; margin:16px auto; padding:0 16px; }
+  .chat { flex:2; display:flex; flex-direction:column; height:72vh; }
+  .side { flex:1; background:var(--panel); border-radius:10px; padding:12px; overflow:auto; height:72vh; font-size:12px;}
+  #log { flex:1; overflow:auto; background:var(--panel); border-radius:10px; padding:12px; }
+  .msg { margin:8px 0; padding:8px 12px; border-radius:8px; max-width:85%; line-height:1.4; }
+  .user { background:#0ea5e9; color:#042f49; margin-left:auto; }
+  .bot { background:#334155; }
+  .row { display:flex; gap:8px; margin-top:10px; }
+  input, select { font:inherit; padding:10px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:var(--text); }
+  #message { flex:1; }
+  button { font:inherit; padding:10px 14px; border:0; border-radius:8px; background:var(--accent); color:#042f49; cursor:pointer; }
+  h2 { font-size:13px; color:var(--accent); margin:12px 0 4px; }
+  pre { white-space:pre-wrap; word-break:break-word; background:#0b1220; padding:8px; border-radius:6px; }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏦 NovaBank AI Assistant</h1>
+  <span class="badge">INTENTIONALLY VULNERABLE — LAB USE ONLY</span>
+</header>
+
+<div class="wrap">
+  <div class="chat">
+    <div id="log">
+      <div class="msg bot">Hi, I'm Nova. Ask me about your balance, transactions, fees, transfers, or documents.</div>
+    </div>
+    <div class="row">
+      <select id="customer" title="Client-supplied identity (trusted blindly)">
+        <option>CUST-1001</option><option>CUST-1002</option>
+        <option>CUST-1003</option><option>CUST-9999</option>
+      </select>
+      <input id="message" placeholder="Type a message…" autocomplete="off">
+      <button onclick="send()">Send</button>
+      <button onclick="reset()" style="background:#475569;color:#e2e8f0">Reset</button>
+    </div>
+  </div>
+
+  <div class="side">
+    <h2>Last-turn trace</h2>
+    <div class="muted">Tool calls the agent made and the raw results. Use this to confirm an exploit fired.</div>
+    <pre id="trace">(none yet)</pre>
+    <h2>Retrieved RAG context</h2>
+    <pre id="rag">(none yet)</pre>
+  </div>
+</div>
+
+<script>
+const sessionId = "web-" + Math.random().toString(36).slice(2);
+const log = document.getElementById('log');
+
+function add(role, html) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+  // VULN: assistant output is injected as HTML, not text -> insecure output
+  // handling / XSS. (User echo is escaped; the model's reply is not.)
+  if (role === 'user') { d.textContent = html; } else { d.innerHTML = html; }
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function send() {
+  const input = document.getElementById('message');
+  const msg = input.value.trim();
+  if (!msg) return;
+  add('user', msg);
+  input.value = '';
+  const customer_id = document.getElementById('customer').value;
+  const res = await fetch('/api/chat', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ message: msg, customer_id, session_id: sessionId })
+  });
+  const data = await res.json();
+  add('bot', data.reply || '(no reply)');
+  document.getElementById('trace').textContent =
+    data.trace && data.trace.length ? JSON.stringify(data.trace, null, 2) : '(no tool calls)';
+  document.getElementById('rag').textContent = data.rag_context || '(none)';
+}
+
+async function reset() {
+  await fetch('/api/reset', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ session_id: sessionId }) });
+  log.innerHTML = '<div class="msg bot">Session reset.</div>';
+}
+
+document.getElementById('message').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+</script>
+</body>
+</html>
