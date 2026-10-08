@@ -1,0 +1,26 @@
+# NovaBank Vulnerable Agent Lab
+#
+# Runs the whole bundle (agent + MCP server + RAG + web UI) in one container.
+# The MCP server is launched by the agent as a stdio subprocess inside the
+# same container, so there is nothing else to wire up.
+#
+#   docker compose up --build
+#   open http://127.0.0.1:8000
+#
+# Bind to 127.0.0.1 only -- do NOT expose this intentionally-vulnerable app
+# to a network you don't fully control.
+
+services:
+  novabank-lab:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # Put your key here or in a .env file next to this compose file.
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-openai/gpt-4o-mini}
+      - DEFAULT_CUSTOMER_ID=CUST-1001
+      - MAX_TOOL_ITERATIONS=15
+      # Keep the shell/RCE tool OFF unless you really mean it.
+      - LAB_ENABLE_SHELL=${LAB_ENABLE_SHELL:-0}
+    # The container is the blast radius. Treat it as disposable.

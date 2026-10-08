@@ -1,0 +1,27 @@
+# NovaBank Vulnerable Agent Lab - Python dependencies
+# Pinned loosely; tested on Python 3.11 - 3.13
+
+# --- Agent / LLM ---
+openai>=1.40.0            # OpenAI-compatible client, pointed at OpenRouter
+python-dotenv>=1.0.1      # load .env
+
+# --- MCP (real Model Context Protocol server + client) ---
+# Pinned to the v1 SDK: FastMCP lives at mcp.server.fastmcp here. mcp>=2
+# renamed it to MCPServer and changed APIs, which would break this lab.
+mcp>=1.2.0,<2
+
+# --- Web app (chat UI + REST API) ---
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+
+# --- HTTP (SSRF tool, OpenRouter transport) ---
+httpx>=0.27.0
+
+# --- Dev / tests (optional) ---
+# pytest>=8.0            # python -m pytest -q
+
+# --- Optional, nicer RAG (NOT required; the lab ships a zero-dependency
+#     pure-Python TF-IDF retriever that works fully offline). Uncomment to
+#     swap in a semantic embedding retriever:
+# sentence-transformers>=2.7.0
+# chromadb>=0.5.0
