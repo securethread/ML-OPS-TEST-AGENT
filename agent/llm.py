@@ -60,6 +60,40 @@ class OpenRouterLLM:
             tool_calls.append({"id": tc.id, "name": tc.function.name, "arguments": args})
         return {"content": msg.content, "tool_calls": tool_calls}
 
+    def stream_complete(self, messages: list[dict], tools: list[dict]):
+        """Yield {'type':'content','text':..} deltas as they arrive from the
+        model, then one {'type':'final','content':..,'tool_calls':[..]}."""
+        stream = self.client.chat.completions.create(
+            model=self.model, messages=messages, tools=tools,
+            tool_choice="auto", temperature=0.2, stream=True,
+        )
+        content = ""
+        acc: dict[int, dict] = {}
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            if delta.content:
+                content += delta.content
+                yield {"type": "content", "text": delta.content}
+            for tc in (delta.tool_calls or []):
+                slot = acc.setdefault(tc.index, {"id": None, "name": None, "args": ""})
+                if tc.id:
+                    slot["id"] = tc.id
+                if tc.function and tc.function.name:
+                    slot["name"] = tc.function.name
+                if tc.function and tc.function.arguments:
+                    slot["args"] += tc.function.arguments
+        tool_calls = []
+        for idx in sorted(acc):
+            s = acc[idx]
+            try:
+                args = json.loads(s["args"] or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            tool_calls.append({"id": s["id"] or f"call_{idx}", "name": s["name"], "arguments": args})
+        yield {"type": "final", "content": content or None, "tool_calls": tool_calls}
+
 
 # -------------------------------------------------------------------------
 # Mock (offline, deterministic, deliberately naive)
@@ -112,6 +146,18 @@ class MockLLM:
         # 3) Nothing left to do -> final answer that echoes gathered tool
         #    output verbatim (insecure output handling / leakage).
         return {"content": self._final_answer(messages), "tool_calls": []}
+
+    def stream_complete(self, messages: list[dict], tools: list[dict]):
+        """Fake streaming: resolve normally, then chunk the final text so the
+        offline path exercises the same SSE flow as the real model."""
+        res = self.complete(messages, tools)
+        if res["tool_calls"]:
+            yield {"type": "final", "content": res["content"], "tool_calls": res["tool_calls"]}
+            return
+        text = res["content"] or ""
+        for i in range(0, len(text), 20):
+            yield {"type": "content", "text": text[i:i + 20]}
+        yield {"type": "final", "content": text, "tool_calls": []}
 
     # -- helpers ----------------------------------------------------------
     def _call(self, name: str, args: dict) -> dict:

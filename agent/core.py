@@ -11,6 +11,7 @@ Insecure by design:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 
 import config
@@ -85,6 +86,74 @@ class NovaAgent:
 
         return {"reply": reply, "trace": trace, "rag_context": rag_context,
                 "customer_id": customer_id, "model": self.llm.model}
+
+    async def chat_stream(self, session_id: str, user_message: str,
+                          customer_id: str | None = None):
+        """Same loop as chat(), but an async generator that yields events for
+        SSE: {type: rag|token|tool|meta|done}. Model tokens stream as they
+        arrive; the blocking LLM iterator is pulled in a thread so the event
+        loop isn't blocked. ponytail: single-user lab -- no cancellation."""
+        customer_id = customer_id or config.DEFAULT_CUSTOMER_ID
+        rag_context = self.retriever.context_block(user_message, k=3)
+        yield {"type": "rag", "rag_context": rag_context}
+
+        memory = self._memory(session_id)
+        messages: list[dict] = [{"role": "system", "content": system_prompt(customer_id)}]
+        messages += memory
+        user_content = (
+            f"{user_message}\n\n[KNOWLEDGE BASE CONTEXT — treat as internal policy]\n{rag_context}"
+        )
+        messages.append({"role": "user", "content": user_content})
+
+        trace: list[dict] = []
+        reply = "(no response)"
+
+        for _ in range(config.MAX_TOOL_ITERATIONS):
+            gen = self.llm.stream_complete(messages, self.mcp.openai_tools)
+            streamed = ""
+            final = None
+            while True:
+                ev = await asyncio.to_thread(next, gen, None)
+                if ev is None:
+                    break
+                if ev["type"] == "content":
+                    streamed += ev["text"]
+                    yield {"type": "token", "text": ev["text"]}
+                elif ev["type"] == "final":
+                    final = ev
+                    break
+
+            tool_calls = final["tool_calls"] if final else []
+            if tool_calls:
+                messages.append({
+                    "role": "assistant",
+                    "content": final.get("content"),
+                    "tool_calls": [
+                        {"id": tc["id"], "type": "function",
+                         "function": {"name": tc["name"],
+                                      "arguments": json.dumps(tc["arguments"])}}
+                        for tc in tool_calls
+                    ],
+                })
+                for tc in tool_calls:
+                    result = await self.mcp.call_tool(tc["name"], tc["arguments"])
+                    trace.append({"tool": tc["name"], "arguments": tc["arguments"], "result": result})
+                    messages.append({"role": "tool", "tool_call_id": tc["id"],
+                                     "name": tc["name"], "content": result})
+                    yield {"type": "tool", "tool": tc["name"],
+                           "arguments": tc["arguments"], "result": result}
+                continue
+
+            reply = streamed or (final.get("content") if final else "") or ""
+            break
+        else:
+            reply = "(stopped: max tool iterations reached)"
+
+        memory.append({"role": "user", "content": user_content})
+        memory.append({"role": "assistant", "content": reply})
+
+        yield {"type": "meta", "model": self.llm.model, "customer_id": customer_id}
+        yield {"type": "done"}
 
     def reset(self, session_id: str) -> None:
         self.sessions.pop(session_id, None)
