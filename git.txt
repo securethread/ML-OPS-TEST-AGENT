@@ -1,0 +1,7 @@
+satlas_cicd_ck_2511250c54489954.oNm5eR1IxzYHcmzZq0EMgV9Fj7bT-KojIEYrWPiN2As
+
+- name: SATLAS AI Security Gate
+  uses: ./.github/actions/satlas-scan-gate
+  with:
+    endpoint: https://your-satlas-server
+    token: ${{ secrets.SATLAS_CICD_TOKEN }}

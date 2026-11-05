@@ -1,0 +1,82 @@
+name: SATLAS AI Security Gate
+
+on:
+  workflow_dispatch:            # run it by hand from the Actions tab
+  push:
+    branches: [main]            # also run on every push to main
+
+jobs:
+  satlas-gate:
+    name: SATLAS scan gate
+    # SATLAS on localhost → use a self-hosted runner on that machine.
+    # SATLAS on a public URL / tunnel → use: ubuntu-latest
+    runs-on: self-hosted
+    timeout-minutes: 45
+    env:
+      SATLAS_ENDPOINT: ${{ vars.SATLAS_ENDPOINT }}      # e.g. http://localhost:3000 (no /api)
+      SATLAS_TOKEN: ${{ secrets.SATLAS_CICD_TOKEN }}    # CI/CD token generated in SATLAS
+      POLL_INTERVAL: 10                                 # seconds between status checks
+      TIMEOUT_SECONDS: 2400                             # give up after 40 minutes
+    steps:
+      - name: Trigger SATLAS scan and wait for the gate
+        shell: bash
+        run: |
+          set -uo pipefail
+          base="${SATLAS_ENDPOINT%/}"
+
+          # ── 1. Trigger the scan ──────────────────────────────────────────
+          echo "Triggering SATLAS scan for commit ${GITHUB_SHA}"
+          trigger=$(curl -sS -w '\n%{http_code}' -X POST "${base}/api/cicd/scan" \
+            -H "Authorization: Bearer ${SATLAS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"commit\":{\"sha\":\"${GITHUB_SHA}\",\"branch\":\"${GITHUB_REF_NAME}\",\"actor\":\"${GITHUB_ACTOR}\"}}") \
+            || { echo "::error::Cannot reach SATLAS at ${base}"; exit 1; }
+          code=$(echo "$trigger" | tail -n1)
+          body=$(echo "$trigger" | sed '$d')
+          if [ "$code" != "202" ]; then
+            echo "::error::SATLAS refused the scan (HTTP ${code}): ${body}"
+            exit 1
+          fi
+          runId=$(echo "$body" | jq -r '.data.runId')
+          echo "Scan started: runId=${runId}"
+
+          # ── 2. Poll until the scan finishes ──────────────────────────────
+          elapsed=0
+          while true; do
+            body=$(curl -sS "${base}/api/cicd/scan/${runId}" -H "Authorization: Bearer ${SATLAS_TOKEN}") \
+              || { echo "::error::Lost connection to SATLAS"; exit 1; }
+            status=$(echo "$body" | jq -r '.data.status // "unknown"')
+            echo "status=${status} progress=$(echo "$body" | jq -r '.data.progressPercent // 0')%"
+            case "$status" in completed|failed|cancelled) break ;; esac
+            if [ "$elapsed" -ge "$TIMEOUT_SECONDS" ]; then
+              echo "::error::SATLAS scan timed out after ${TIMEOUT_SECONDS}s"
+              exit 1
+            fi
+            sleep "$POLL_INTERVAL"
+            elapsed=$((elapsed + POLL_INTERVAL))
+          done
+
+          # ── 3. Read the gate decision ────────────────────────────────────
+          passed=$(echo "$body" | jq -r '.data.gate.passed // false')
+          reason=$(echo "$body" | jq -r '.data.gate.reason // "no reason"')
+          grade=$(echo "$body" | jq -r '.data.summary.grade // "n/a"')
+          {
+            echo "### SATLAS AI Security Gate"
+            echo "- **Passed:** ${passed}"
+            echo "- **Reason:** ${reason}"
+            echo "- **Grade:** ${grade}"
+            echo "- **Run:** ${runId} · commit \`${GITHUB_SHA}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$passed" = "true" ]; then
+            echo "::notice::SATLAS gate passed - ${reason}"
+          else
+            echo "::error::SATLAS gate blocked - ${reason}"
+            exit 1
+          fi
+
+  deploy:
+    needs: satlas-gate            # runs only if the gate passed
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Gate passed - deploy here"
