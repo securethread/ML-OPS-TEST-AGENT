@@ -11,10 +11,11 @@ Insecure by design at the web layer too:
 """
 from __future__ import annotations
 
+import json as _json
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 import config
@@ -45,6 +46,23 @@ async def chat(request: Request):
     session_id = body.get("session_id") or "default"
     result = await agent.chat(session_id, message, customer_id)
     return JSONResponse(result)
+
+
+@app.post("/api/chat/stream")
+async def chat_stream(request: Request):
+    """Server-sent events: streams model tokens + tool/rag/meta events.
+    Same (insecure) identity model as /api/chat -- customer_id from the body."""
+    body = await request.json()
+    message = body.get("message", "")
+    customer_id = body.get("customer_id") or config.DEFAULT_CUSTOMER_ID
+    session_id = body.get("session_id") or "default"
+
+    async def events():
+        async for ev in agent.chat_stream(session_id, message, customer_id):
+            yield f"data: {_json.dumps(ev)}\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.post("/api/reset")
